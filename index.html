@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Produce Freshness Scanner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @media (min-width: 768px) {
+            body {
+                padding: 40px 20px;
+            }
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            padding: 30px 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                padding: 40px;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            }
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 26px;
+        }
+
+        @media (min-width: 768px) {
+            h1 {
+                margin-bottom: 40px;
+                font-size: 32px;
+            }
+        }
+
+        .fruit-select-section {
+            margin-bottom: 30px;
+        }
+
+        @media (min-width: 768px) {
+            .fruit-select-section {
+                margin-bottom: 40px;
+            }
+        }
+
+        .fruit-select-label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .fruit-select {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 16px;
+            border: 3px solid #ddd;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            padding-right: 40px;
+        }
+
+        .fruit-select:hover {
+            border-color: #667eea;
+        }
+
+        .fruit-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .price-input-section {
+            margin-bottom: 20px;
+        }
+
+        .price-input-label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .price-input {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 16px;
+            border: 3px solid #ddd;
+            border-radius: 12px;
+            background: white;
+            transition: all 0.3s;
+        }
+
+        .price-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .upload-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .upload-btn {
+            padding: 14px 32px;
+            font-size: 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        @media (min-width: 768px) {
+            .upload-btn {
+                padding: 15px 40px;
+                font-size: 18px;
+            }
+        }
+
+        .upload-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .image-preview {
+            margin: 30px 0;
+            text-align: center;
+        }
+
+        .image-preview img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 30px;
+            font-size: 20px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        @media (min-width: 768px) {
+            .loading {
+                padding: 40px;
+                font-size: 24px;
+            }
+        }
+
+        .result-card {
+            margin-top: 30px;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            animation: fadeIn 0.5s;
+        }
+
+        @media (min-width: 768px) {
+            .result-card {
+                padding: 30px;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-card.green {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .result-card.orange {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .result-card.red {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .result-card.yellow {
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+        }
+
+        .ripeness-level {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        @media (min-width: 768px) {
+            .ripeness-level {
+                font-size: 28px;
+            }
+        }
+
+        .discount {
+            font-size: 30px;
+            margin-top: 10px;
+        }
+
+        @media (min-width: 768px) {
+            .discount {
+                font-size: 36px;
+            }
+        }
+
+        .price-info {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .price-row.final {
+            font-size: 24px;
+            font-weight: 700;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        @media (min-width: 768px) {
+            .price-row {
+                font-size: 20px;
+            }
+            .price-row.final {
+                font-size: 28px;
+            }
+        }
+
+        .scan-another-btn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .scan-another-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .history-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .history-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .history-title {
+                font-size: 26px;
+            }
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .history-item {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 2px solid #e0e0e0;
+        }
+
+        .history-item-info {
+            flex: 1;
+        }
+
+        .history-item-fruit {
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .history-item-details {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .history-item-price {
+            text-align: right;
+            font-weight: 700;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .history-empty {
+            text-align: center;
+            color: #999;
+            padding: 30px;
+            font-style: italic;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Produce Freshness Scanner</h1>
+
+        <div class="fruit-select-section">
+            <label class="fruit-select-label" for="fruitSelect">Select Produce Type</label>
+            <select class="fruit-select" id="fruitSelect">
+                <option value="">-- Select a fruit --</option>
+                <option value="banana">🍌 Banana</option>
+                <option value="apple">🍎 Apple</option>
+                <option value="avocado">🥑 Avocado</option>
+                <option value="orange">🍊 Orange</option>
+                <option value="strawberry">🍓 Strawberry</option>
+                <option value="grape">🍇 Grape</option>
+                <option value="mango">🥭 Mango</option>
+                <option value="pineapple">🍍 Pineapple</option>
+                <option value="watermelon">🍉 Watermelon</option>
+                <option value="peach">🍑 Peach</option>
+                <option value="pear">🍐 Pear</option>
+                <option value="cherry">🍒 Cherry</option>
+            </select>
+        </div>
+
+        <div class="price-input-section">
+            <label class="price-input-label" for="priceInput">Original Price ($)</label>
+            <input type="number" class="price-input" id="priceInput" placeholder="Enter original price" min="0" step="0.01">
+        </div>
+
+        <div class="upload-section">
+            <div class="file-input-wrapper">
+                <input type="file" id="imageInput" accept="image/*">
+                <button class="upload-btn">Upload Photo</button>
+            </div>
+        </div>
+
+        <div class="image-preview hidden" id="imagePreview">
+            <img id="previewImage" src="" alt="Preview">
+        </div>
+
+        <div class="loading hidden" id="loading">
+            Analyzing...
+        </div>
+
+        <div class="result-card hidden" id="resultCard">
+            <div class="ripeness-level" id="ripenessLevel"></div>
+            <div class="discount" id="discount"></div>
+            <div class="price-info hidden" id="priceInfo">
+                <div class="price-row">
+                    <span>Original Price:</span>
+                    <span id="originalPriceDisplay">$0.00</span>
+                </div>
+                <div class="price-row">
+                    <span>Discount:</span>
+                    <span id="discountAmountDisplay">-$0.00</span>
+                </div>
+                <div class="price-row final">
+                    <span>Final Price:</span>
+                    <span id="finalPriceDisplay">$0.00</span>
+                </div>
+            </div>
+            <button class="scan-another-btn" id="scanAnotherBtn">Scan Another</button>
+        </div>
+
+        <div class="history-section">
+            <h2 class="history-title">Scan History</h2>
+            <div class="history-list" id="historyList">
+                <div class="history-empty">No scans yet. Upload an image to get started!</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFruit = null;
+        let scanHistory = JSON.parse(localStorage.getItem('scanHistory')) || [];
+
+        // Fruit dropdown selection
+        document.getElementById('fruitSelect').addEventListener('change', function(e) {
+            selectedFruit = e.target.value;
+        });
+
+        // Scan Another button
+        document.getElementById('scanAnotherBtn').addEventListener('click', function() {
+            resetForm();
+        });
+
+        // File upload handling
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Show image preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('imagePreview');
+                const previewImage = document.getElementById('previewImage');
+                previewImage.src = e.target.result;
+                preview.classList.remove('hidden');
+
+                // Hide previous results
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('resultCard').classList.add('hidden');
+
+                // Start analysis
+                setTimeout(() => {
+                    analyzeImage();
+                }, 100);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function analyzeImage() {
+            // Show loading
+            const loading = document.getElementById('loading');
+            const resultCard = document.getElementById('resultCard');
+            
+            loading.classList.remove('hidden');
+            resultCard.classList.add('hidden');
+
+            // Mock analysis after 1 second
+            setTimeout(() => {
+                loading.classList.add('hidden');
+                
+                // Get selected fruit and price
+                const fruitSelect = document.getElementById('fruitSelect');
+                const selectedFruitName = fruitSelect.options[fruitSelect.selectedIndex].text;
+                const priceInput = document.getElementById('priceInput');
+                const originalPrice = parseFloat(priceInput.value) || 0;
+
+                // Random results
+                const ripenessOptions = ["Just Ripe", "Peak Ripeness", "Overripe", "Past Peak"];
+                const discountOptions = [0, 15, 30, 50];
+                
+                const randomRipeness = ripenessOptions[Math.floor(Math.random() * ripenessOptions.length)];
+                const randomDiscount = discountOptions[Math.floor(Math.random() * discountOptions.length)];
+
+                // Calculate prices
+                const discountAmount = (originalPrice * randomDiscount) / 100;
+                const finalPrice = originalPrice - discountAmount;
+
+                // Determine color based on ripeness
+                let colorClass = 'green';
+                if (randomRipeness === "Overripe") {
+                    colorClass = 'orange';
+                } else if (randomRipeness === "Past Peak") {
+                    colorClass = 'red';
+                } else if (randomRipeness === "Peak Ripeness" && randomDiscount > 0) {
+                    colorClass = 'yellow';
+                }
+
+                // Update result card
+                document.getElementById('ripenessLevel').textContent = randomRipeness;
+                document.getElementById('discount').textContent = randomDiscount > 0 ? `${randomDiscount}% Discount` : 'No Discount';
+                
+                // Update price info
+                const priceInfo = document.getElementById('priceInfo');
+                if (originalPrice > 0) {
+                    document.getElementById('originalPriceDisplay').textContent = `$${originalPrice.toFixed(2)}`;
+                    document.getElementById('discountAmountDisplay').textContent = `-$${discountAmount.toFixed(2)}`;
+                    document.getElementById('finalPriceDisplay').textContent = `$${finalPrice.toFixed(2)}`;
+                    priceInfo.classList.remove('hidden');
+                } else {
+                    priceInfo.classList.add('hidden');
+                }
+                
+                resultCard.className = `result-card ${colorClass}`;
+                resultCard.classList.remove('hidden');
+
+                // Save to history
+                if (selectedFruitName && selectedFruitName !== '-- Select a fruit --') {
+                    const historyItem = {
+                        fruit: selectedFruitName,
+                        ripeness: randomRipeness,
+                        discount: randomDiscount,
+                        originalPrice: originalPrice,
+                        finalPrice: finalPrice,
+                        timestamp: new Date().toLocaleString()
+                    };
+                    scanHistory.unshift(historyItem);
+                    // Keep only last 10 scans
+                    if (scanHistory.length > 10) {
+                        scanHistory = scanHistory.slice(0, 10);
+                    }
+                    localStorage.setItem('scanHistory', JSON.stringify(scanHistory));
+                    updateHistoryDisplay();
+                }
+            }, 1000);
+        }
+
+        function resetForm() {
+            // Reset form elements
+            document.getElementById('fruitSelect').value = '';
+            document.getElementById('priceInput').value = '';
+            document.getElementById('imageInput').value = '';
+            document.getElementById('imagePreview').classList.add('hidden');
+            document.getElementById('resultCard').classList.add('hidden');
+            document.getElementById('loading').classList.add('hidden');
+            selectedFruit = null;
+        }
+
+        function updateHistoryDisplay() {
+            const historyList = document.getElementById('historyList');
+            
+            if (scanHistory.length === 0) {
+                historyList.innerHTML = '<div class="history-empty">No scans yet. Upload an image to get started!</div>';
+                return;
+            }
+
+            historyList.innerHTML = scanHistory.map(item => {
+                // Extract emoji (first character) and name (rest)
+                const fruitParts = item.fruit.split(' ');
+                const fruitEmoji = fruitParts[0] || '🍎';
+                const fruitName = fruitParts.slice(1).join(' ') || item.fruit;
+                return `
+                    <div class="history-item">
+                        <div class="history-item-info">
+                            <div class="history-item-fruit">${fruitEmoji} ${fruitName}</div>
+                            <div class="history-item-details">${item.ripeness} • ${item.discount}% off • ${item.timestamp}</div>
+                        </div>
+                        <div class="history-item-price">
+                            ${item.originalPrice > 0 ? `$${item.finalPrice.toFixed(2)}` : 'N/A'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Initialize history display on page load
+        updateHistoryDisplay();
+    </script>
+</body>
+</html>
+
