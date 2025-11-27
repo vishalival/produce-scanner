@@ -553,7 +553,8 @@
             Camera,
             Clock,
             BarChart3,
-            Settings as SettingsIcon
+            Settings as SettingsIcon,
+            UploadCloud
         } from "https://esm.sh/lucide-react@0.321.0?deps=react@18.2.0";
 
         const { useState, useEffect, useMemo } = React;
@@ -751,7 +752,7 @@
                                     style: { display: "none" },
                                     onChange: handleImageChange
                                 }),
-                                "⬆️"
+                                h(UploadCloud, { size: 24, strokeWidth: 2.6, "aria-hidden": true })
                             ),
                             h("button", {
                                 className: "circle-btn",
