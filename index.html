@@ -548,6 +548,13 @@
             useNavigate,
             useLocation
         } from "https://esm.sh/react-router-dom@6.22.2?deps=react@18.2.0";
+        import {
+            Home,
+            Camera,
+            Clock,
+            BarChart3,
+            Settings as SettingsIcon
+        } from "https://esm.sh/lucide-react@0.321.0?deps=react@18.2.0";
 
         const { useState, useEffect, useMemo } = React;
         const h = React.createElement;
@@ -565,11 +572,11 @@
         const defaultImage = "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?auto=format&fit=crop&w=600&q=60";
 
         const navItems = [
-            { path: "/home", label: "Home", icon: "🏠" },
-            { path: "/scan", label: "Scan", icon: "📷" },
-            { path: "/history", label: "History", icon: "🕓" },
-            { path: "/dashboard", label: "Dashboard", icon: "📊" },
-            { path: "/settings", label: "Settings", icon: "⚙️" }
+            { path: "/home", label: "Home", icon: Home },
+            { path: "/scan", label: "Scan", icon: Camera },
+            { path: "/history", label: "History", icon: Clock },
+            { path: "/dashboard", label: "Dashboard", icon: BarChart3 },
+            { path: "/settings", label: "Settings", icon: SettingsIcon }
         ];
 
         const discountPalette = {
@@ -627,13 +634,22 @@
         const BottomNav = () => {
             const location = useLocation();
             return h("nav", null,
-                navItems.map((item, idx) =>
-                    h(Link, {
+                navItems.map((item, idx) => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+                    return h(Link, {
                         key: `${item.path}-${idx}`,
                         to: item.path,
-                        className: `nav-btn ${location.pathname === item.path ? "active" : ""}`
-                    }, h("span", { style: { fontSize: "18px" } }, item.icon), item.label)
-                )
+                        className: `nav-btn ${isActive ? "active" : ""}`
+                    },
+                        h(Icon, {
+                            size: 22,
+                            strokeWidth: 2.4,
+                            "aria-hidden": true
+                        }),
+                        item.label
+                    );
+                })
             );
         };
 
@@ -962,13 +978,14 @@
                 ),
                 h("div", { className: "analysis-card" },
                     h("h3", null, "Store Information"),
-                    h("p", null, "Store #4523"),
-                    h("p", null, "Produce Department"),
-                    h("p", null, "Contact: produce.manager@groceryco.com")
+                    h("p", null, "Team #23"),
+                    h("p", null, "Contact: wl758@cornell.edu")
                 ),
                 h("div", { className: "analysis-card" },
                     h("h3", null, "About"),
-                    h("p", null, "Prototype tool demonstrating freshness insights, pricing guidance, and waste reduction for grocery teams. No real computer vision is performed.")
+                    h("p", null, "Prototype tool demonstrating freshness insights, pricing guidance, and waste reduction for grocery teams. No real computer vision is performed."),
+                    h("p", { style: { marginTop: "12px", fontWeight: 600 } }, "Cornell Tech Product Studio · Team 23"),
+                    h("p", null, "Authors: Wuchen Li, Matt Shapiro, Audrey Tjokro, Michael Twersky, Vishali Vallioor")
                 )
             );
 
