@@ -570,7 +570,7 @@
             { value: "mango", label: "Mango", icon: "🥭" }
         ];
 
-        const defaultImage = "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?auto=format&fit=crop&w=600&q=60";
+        const defaultImage = "https://i5.samsclubimages.com/asr/e88cd487-1e1b-4373-9808-de4484446960.89a37ef2c5eeab632d4297cc90162d61.jpeg?odnHeight=640&odnWidth=640&odnBg=FFFFFF";
 
         const navItems = [
             { path: "/home", label: "Home", icon: Home },
@@ -614,6 +614,30 @@
 
         const summaryCopy = (produce, shelfLife, recommendation, defects) =>
             `Team, this ${produce.label.toLowerCase()} is trending ${recommendation.label.toLowerCase()}. Shelf life estimates ${shelfLife}, with ${defects.includes("No") ? "no visible defects" : "minor surface blemishes"} noted. Consider ${recommendation.label.toLowerCase()} to keep shrink low.`;
+
+        const recipeLibrary = {
+            banana: {
+                peak: ["Banana Overnight Oats", "Caramelized Banana Yogurt Bowls"],
+                ripe: ["Classic Banana Bread", "Banana Walnut Muffins"],
+                sellToday: ["Banana Fritters", "Three-Ingredient Banana Pancakes"],
+                past: ["Banana Smoothie Base", "Frozen Banana Nice Cream"]
+            },
+            avocado: {
+                peak: ["Citrus Avocado Salad", "Avocado Toast Flight"],
+                ripe: ["Chunky Table Guac", "Avocado BLT Wraps"],
+                sellToday: ["Avocado Hummus Cups", "Stuffed Avocado Boats"],
+                past: ["Creamy Avocado Dressing", "Avocado Cacao Pudding"]
+            }
+        };
+
+        const getRecipeIdeas = (produceValue, avgStars) => {
+            const recipes = recipeLibrary[produceValue];
+            if (!recipes) return ["Slice into salads", "Blend into smoothies"];
+            if (avgStars >= 4.5) return recipes.peak;
+            if (avgStars >= 3.5) return recipes.ripe;
+            if (avgStars >= 2.5) return recipes.sellToday;
+            return recipes.past;
+        };
 
         const StarRating = ({ value }) => {
             const full = "★".repeat(value);
@@ -694,6 +718,7 @@
                     const confidence = Math.floor(Math.random() * 10) + 89;
                     const originalPrice = parseFloat(price) || 0;
                     const newPrice = originalPrice ? originalPrice * (1 - recommendation.discount / 100) : 0;
+                const recipes = getRecipeIdeas(selected.value, avgStars);
                     const analysis = {
                         id: Date.now(),
                         produce: selected,
@@ -708,7 +733,8 @@
                         imageData,
                         fileName,
                         timestamp: new Date().toLocaleString(),
-                        summary: summaryCopy(selected, shelfLife, recommendation, defects)
+                    summary: summaryCopy(selected, shelfLife, recommendation, defects),
+                    recipes
                     };
                     onComplete(analysis);
                     setAnalyzing(false);
@@ -826,6 +852,12 @@
                         h("div", { style: { fontSize: "30px", marginTop: "6px", fontWeight: 800 } }, `New Price: $${newPrice}`)
                     ),
                     h("div", { className: "summary-box" }, result.summary),
+                    h("div", { className: "analysis-card" },
+                        h("h3", null, "Recipe Ideas"),
+                        (result.recipes || ["Slice into salads", "Blend into smoothies"]).map((idea) =>
+                            h("div", { key: idea }, `• ${idea}`)
+                        )
+                    ),
                     h(ConfidenceBar, { value: result.confidence })
                 ),
                 h("div", { className: "grid", style: { gap: "12px" } },
