@@ -570,6 +570,27 @@
             { value: "mango", label: "Mango", icon: "🥭" }
         ];
 
+        const slugify = (value = "") =>
+            value
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "") || "produce";
+
+        const titleCase = (value = "") =>
+            value
+                .toLowerCase()
+                .split(" ")
+                .filter(Boolean)
+                .map((word) => word[0]?.toUpperCase() + word.slice(1))
+                .join(" ");
+
+        const matchProduceOption = (name = "") => {
+            const lowered = name.toLowerCase();
+            return produceOptions.find((opt) =>
+                lowered.includes(opt.value) || lowered.includes(opt.label.toLowerCase())
+            );
+        };
+
         const defaultImage = "https://i5.samsclubimages.com/asr/e88cd487-1e1b-4373-9808-de4484446960.89a37ef2c5eeab632d4297cc90162d61.jpeg?odnHeight=640&odnWidth=640&odnBg=FFFFFF";
 
         const navItems = [
@@ -639,6 +660,117 @@
             return recipes.past;
         };
 
+        const clampRating = (value) => {
+            const num = Number(value);
+            if (Number.isNaN(num)) return null;
+            return Math.max(1, Math.min(5, Math.round(num)));
+        };
+
+        const clampConfidence = (value) => {
+            const num = Number(value);
+            if (Number.isNaN(num)) return 90;
+            return Math.max(30, Math.min(100, Math.round(num)));
+        };
+
+        const extractJsonFromText = (text) => {
+            if (!text) return null;
+            const cleaned = text
+                .replace(/```json/gi, "```")
+                .replace(/```/g, "")
+                .replace(/\n/g, " ")
+                .trim();
+            const start = text.indexOf("{");
+            const end = text.lastIndexOf("}");
+            const segment = start !== -1 && end !== -1 && end > start ? text.slice(start, end + 1) : cleaned;
+            try {
+                return JSON.parse(segment);
+            } catch {
+                try {
+                    return JSON.parse(cleaned);
+                } catch {
+                    return null;
+                }
+            }
+        };
+
+        const toErrorMessage = (err) => {
+            if (!err) return "Unknown error";
+            if (typeof err === "string") return err;
+            if (typeof err.message === "string" && err.message.trim()) return err.message;
+            try {
+                return JSON.stringify(err);
+            } catch {
+                return String(err);
+            }
+        };
+
+        const defaultModelSettings = {
+            endpoint: "http://localhost:8787/analyze",
+            model: "gemini-2.5-flash"
+        };
+
+        const SETTINGS_KEY = "produce-vision-settings";
+
+        const analyzeWithVisionModel = async ({ imageData, produce, settings }) => {
+            const endpoint = settings?.endpoint || defaultModelSettings.endpoint;
+            if (!endpoint) {
+                throw new Error("Configure a local analyzer endpoint in Settings.");
+            }
+
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    imageData,
+                    produceLabel: produce.label,
+                    produceValue: produce.value,
+                    model: settings?.model || defaultModelSettings.model
+                })
+            });
+
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                console.error("Vision API error payload", {
+                    status: response.status,
+                    payload
+                });
+                const rawMessage = payload?.error || payload?.message || "Vision model call failed.";
+                const normalizedMessage = typeof rawMessage === "string" ? rawMessage : JSON.stringify(rawMessage);
+                throw new Error(normalizedMessage);
+            }
+
+            const choice = payload.choices?.[0];
+            const assistantContent = choice?.message?.content;
+            console.log("Vision API assistant content", assistantContent);
+            let combinedText = "";
+            if (typeof assistantContent === "string") {
+                combinedText = assistantContent;
+            } else if (Array.isArray(assistantContent)) {
+                combinedText = assistantContent
+                    .map((chunk) => chunk.text || chunk.content || "")
+                    .join("\n");
+            }
+
+            const parsed = extractJsonFromText(combinedText.trim());
+            if (!parsed) {
+                throw new Error("Model response did not include readable JSON.");
+            }
+
+            return {
+                ripeness: clampRating(parsed.ripeness),
+                freshness: clampRating(parsed.freshness),
+                confidence: clampConfidence(parsed.confidence),
+                defects: typeof parsed.defects === "string" ? parsed.defects : "",
+                shelfLife: typeof parsed.shelfLife === "string" ? parsed.shelfLife : "",
+                summary: typeof parsed.summary === "string" ? parsed.summary : "",
+                produceName: typeof parsed.produceName === "string" ? parsed.produceName.trim() : "",
+                estimatedPrice: typeof parsed.estimatedPrice === "number" ? parsed.estimatedPrice : Number(parsed.estimatedPrice)
+            };
+        };
+
         const StarRating = ({ value }) => {
             const full = "★".repeat(value);
             const empty = "☆".repeat(5 - value);
@@ -678,13 +810,13 @@
             );
         };
 
-        const ScanPage = ({ onComplete }) => {
-            const [produce, setProduce] = useState(produceOptions[0].value);
+        const ScanPage = ({ onComplete, analyzeProduce, settings }) => {
             const [price, setPrice] = useState("");
             const [imageData, setImageData] = useState(defaultImage);
             const [fileName, setFileName] = useState("Sample image");
             const [analyzing, setAnalyzing] = useState(false);
             const [error, setError] = useState("");
+            const [lastDetected, setLastDetected] = useState("");
             const navigate = useNavigate();
 
             const handleImageChange = (e) => {
@@ -698,61 +830,36 @@
             reader.readAsDataURL(file);
             };
 
-            const runAnalysis = () => {
-                const selected = produceOptions.find((opt) => opt.value === produce);
-                if (!selected) {
-                    setError("Choose a produce item before scanning.");
-                    return;
-                }
+            const runAnalysis = async () => {
                 setError("");
                 setAnalyzing(true);
 
-                const delay = 1100 + Math.random() * 800;
-            setTimeout(() => {
-                    const ripeness = weightedStar();
-                    const freshness = weightedStar();
-                    const avgStars = (ripeness + freshness) / 2;
-                    const defects = Math.random() < 0.9 ? "No defects! 👍" : "Minor defects detected ⚠️";
-                    const shelfLife = shelfLifeFromStars(avgStars);
-                    const recommendation = discountFromStars(avgStars);
-                    const confidence = Math.floor(Math.random() * 10) + 89;
-                    const originalPrice = parseFloat(price) || 0;
-                    const newPrice = originalPrice ? originalPrice * (1 - recommendation.discount / 100) : 0;
-                const recipes = getRecipeIdeas(selected.value, avgStars);
-                    const analysis = {
-                        id: Date.now(),
-                        produce: selected,
-                        ripeness,
-                        freshness,
-                        defects,
-                        shelfLife,
-                        recommendation,
-                        confidence,
-                        originalPrice,
-                        newPrice,
+                try {
+                    const analysis = await analyzeProduce({
+                        produce: produceOptions[0],
+                        priceValue: parseFloat(price) || 0,
                         imageData,
-                        fileName,
-                        timestamp: new Date().toLocaleString(),
-                    summary: summaryCopy(selected, shelfLife, recommendation, defects),
-                    recipes
-                    };
+                        fileName
+                    });
+                    setLastDetected(analysis?.produce?.label || "");
                     onComplete(analysis);
-                    setAnalyzing(false);
                     navigate("/results");
-                }, delay);
+                } catch (modelError) {
+                    console.error("Scan analysis failed", modelError);
+                    setError(toErrorMessage(modelError));
+                } finally {
+                    setAnalyzing(false);
+                }
             };
 
             return h("div", { className: "grid", style: { gap: "20px" } },
                 h("div", { className: "panel grid" },
                     h("div", null,
-                        h("label", { htmlFor: "produce-select" }, "Produce Type"),
-                        h("select", {
-                            id: "produce-select",
-                            value: produce,
-                            onChange: (e) => setProduce(e.target.value)
-                        }, produceOptions.map((opt) =>
-                            h("option", { key: opt.value, value: opt.value }, `${opt.icon} ${opt.label}`)
-                        ))
+                        h("label", null, "Produce Type"),
+                        h("div", { style: { padding: "12px 16px", borderRadius: "16px", background: "#fdf6ed", border: "1px solid #f0dccc", fontWeight: 600 } },
+                            lastDetected ? `Detected: ${lastDetected}` : "Auto-detected after scan"
+                        ),
+                        h("p", { style: { marginTop: "6px", fontSize: "13px", color: "#8c7a6c" } }, "No selection needed—the vision model will identify the produce automatically.")
                     ),
                     h("div", null,
                         h("label", { htmlFor: "price-input" }, "Original Price ($)"),
@@ -792,7 +899,11 @@
                         )
                     ),
                     error && h("div", { style: { color: "#b33a3a", fontWeight: 600 } }, error),
-                    h("button", { className: "primary-btn", onClick: runAnalysis }, "Capture & Analyze"),
+                    h("button", {
+                        className: "primary-btn",
+                        onClick: runAnalysis,
+                        disabled: analyzing
+                    }, analyzing ? "Analyzing..." : "Capture & Analyze"),
                     h("button", { className: "ghost-btn", onClick: () => setImageData(defaultImage) }, "Reset Preview")
                 )
             );
@@ -819,6 +930,7 @@
                         `${result.produce.icon} ${result.produce.label}`,
                         h("span", { className: badgeClass }, result.recommendation.label)
                     ),
+                    result.detectedProduceName && h("div", { style: { color: "#7a6f63", fontSize: "14px" } }, `Detected as: ${result.detectedProduceName}`),
                     h("div", { className: "star-row", style: { display: "flex", gap: "12px" } },
                         h("div", { className: "analysis-card", style: { flex: 1 } },
                             h("h3", null, "Ripeness"),
@@ -848,6 +960,9 @@
                                 onPriceUpdate(val);
                             }
                         }),
+                        result.detectedProduceName && result.originalPrice
+                            ? h("div", { style: { marginTop: "6px", color: "#7a6f63", fontSize: "13px" } }, `Suggested price from vision model: $${result.originalPrice.toFixed(2)}`)
+                            : null,
                         h("div", { style: { marginTop: "12px", fontWeight: 700 } }, `Recommended Discount: ${result.recommendation.discount}%`),
                         h("div", { style: { fontSize: "30px", marginTop: "6px", fontWeight: 800 } }, `New Price: $${newPrice}`)
                     ),
@@ -992,14 +1107,52 @@
             );
         };
 
-        const SettingsPage = () =>
-            h("div", { className: "grid", style: { gap: "16px" } },
-                h("div", { className: "page-title" }, "How to Use"),
+        const SettingsPage = ({ settings, onSave }) => {
+            const [endpointInput, setEndpointInput] = useState(settings?.endpoint || defaultModelSettings.endpoint);
+            const [status, setStatus] = useState("");
+
+            const handleSave = () => {
+                onSave({
+                    endpoint: endpointInput.trim() || defaultModelSettings.endpoint,
+                    model: defaultModelSettings.model
+                });
+                setStatus("Settings saved locally.");
+                setTimeout(() => setStatus(""), 2400);
+            };
+
+            return h("div", { className: "grid", style: { gap: "16px" } },
+                h("div", { className: "page-title" }, "Settings & Guides"),
+                h("div", { className: "analysis-card grid", style: { gap: "12px" } },
+                    h("h3", null, "Vision Model Configuration"),
+                    h("p", { style: { color: "#7f736a", fontSize: "14px", lineHeight: 1.5 } },
+                        "Point the app at a local proxy (or remote endpoint you control). Model selection is fixed to the recommended Gemini tier."
+                    ),
+                    h("label", { htmlFor: "proxy-endpoint" }, "Analyzer Endpoint"),
+                    h("input", {
+                        id: "proxy-endpoint",
+                        value: endpointInput,
+                        onChange: (e) => setEndpointInput(e.target.value),
+                        placeholder: "http://localhost:8787/analyze"
+                    }),
+                    h("div", { style: { marginTop: "4px", fontSize: "14px", color: "#7f736a" } }, "Model: gemini-2.5-flash (locked)"),
+                    h("button", { className: "primary-btn", onClick: handleSave }, "Save Settings"),
+                    status && h("div", { style: { color: "#3b7c2f", fontWeight: 600 } }, status)
+                ),
                 h("div", { className: "analysis-card" },
+                    h("h3", null, "Start the Local Proxy"),
+                    h("ol", { style: { paddingLeft: "18px", lineHeight: 1.6 } },
+                        h("li", null, "Install dependencies: Node 18+ recommended."),
+                        h("li", null, "Export your Gemini API key once in the shell: export GEMINI_API_KEY=ai-..."),
+                        h("li", null, "Run: node local-proxy.js (or PORT=8787 node local-proxy.js)."),
+                        h("li", null, "Leave the proxy running while you test the UI.")
+                    )
+                ),
+                h("div", { className: "analysis-card" },
+                    h("h3", null, "How to Use"),
                     h("ol", { style: { paddingLeft: "18px", lineHeight: 1.6 } },
                         h("li", null, "Select produce type & enter original price."),
                         h("li", null, "Capture or upload a clear photo."),
-                        h("li", null, "Review automated assessment & pricing recommendation."),
+                        h("li", null, "Run the analysis to pull vision-model scores."),
                         h("li", null, "Apply discount to sync with in-store labels.")
                     )
                 ),
@@ -1016,11 +1169,12 @@
                 ),
                 h("div", { className: "analysis-card" },
                     h("h3", null, "About"),
-                    h("p", null, "Prototype tool demonstrating freshness insights, pricing guidance, and waste reduction for grocery teams. No real computer vision is performed."),
+                    h("p", null, "Prototype tool demonstrating freshness insights, pricing guidance, and waste reduction for grocery teams. Vision results powered by the configured Gemini endpoint."),
                     h("p", { style: { marginTop: "12px", fontWeight: 600 } }, "Cornell Tech Product Studio · Team 23"),
                     h("p", null, "Authors: Wuchen Li, Matt Shapiro, Audrey Tjokro, Michael Twersky, Vishali Vallioor")
                 )
             );
+        };
 
         const App = () => {
             const [history, setHistory] = useState(() => {
@@ -1031,14 +1185,70 @@
                 }
             });
             const [result, setResult] = useState(null);
+            const [llmSettings, setLlmSettings] = useState(() => {
+                try {
+                    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
+                    return { ...defaultModelSettings, ...saved, model: defaultModelSettings.model };
+                } catch {
+                    return defaultModelSettings;
+                }
+            });
 
             useEffect(() => {
                 localStorage.setItem("produce-history", JSON.stringify(history));
             }, [history]);
 
+            useEffect(() => {
+                localStorage.setItem(SETTINGS_KEY, JSON.stringify(llmSettings));
+            }, [llmSettings]);
+
             const handleScanComplete = (analysis) => {
                 setResult(analysis);
                 setHistory((prev) => [analysis, ...prev].slice(0, 15));
+            };
+
+            const analyzeProduce = async ({ produce, priceValue, imageData, fileName }) => {
+                const modelResult = await analyzeWithVisionModel({ imageData, produce, settings: llmSettings });
+                const detectedName = modelResult.produceName || "";
+                const matched = detectedName ? matchProduceOption(detectedName) : null;
+                const fallbackLabel = detectedName ? titleCase(detectedName) : produceOptions[0].label;
+                const produceMeta = matched || {
+                    value: slugify(detectedName) || slugify(fallbackLabel),
+                    label: fallbackLabel,
+                    icon: matched?.icon || "🛒"
+                };
+                const ripeness = modelResult.ripeness ?? weightedStar();
+                const freshness = modelResult.freshness ?? weightedStar();
+                const avgStars = (ripeness + freshness) / 2;
+                const shelfLife = modelResult.shelfLife || shelfLifeFromStars(avgStars);
+                const recommendation = discountFromStars(avgStars);
+                const confidence = modelResult.confidence ?? (Math.floor(Math.random() * 10) + 89);
+                const defects = modelResult.defects || "No visible defects.";
+                const summary = modelResult.summary || summaryCopy(produceMeta, shelfLife, recommendation, defects);
+                const recipes = getRecipeIdeas(produceMeta.value, avgStars);
+                const originalPrice = Number.isFinite(modelResult.estimatedPrice)
+                    ? Number(modelResult.estimatedPrice)
+                    : (priceValue || 0);
+                const newPrice = originalPrice ? originalPrice * (1 - recommendation.discount / 100) : 0;
+
+                return {
+                    id: Date.now(),
+                    produce: produceMeta,
+                    ripeness,
+                    freshness,
+                    defects,
+                    shelfLife,
+                    recommendation,
+                    confidence,
+                    originalPrice,
+                    newPrice,
+                    imageData,
+                    fileName,
+                    timestamp: new Date().toLocaleString(),
+                    summary,
+                    recipes,
+                    detectedProduceName: detectedName || produceMeta.label
+                };
             };
 
             const clearHistory = () => {
@@ -1047,7 +1257,13 @@
                 }
             };
 
-            const ScanRoute = () => h(ScanPage, { onComplete: handleScanComplete });
+            const updateSettings = (updates) => setLlmSettings((prev) => ({
+                ...prev,
+                ...updates,
+                model: defaultModelSettings.model
+            }));
+
+            const ScanRoute = () => h(ScanPage, { onComplete: handleScanComplete, analyzeProduce, settings: llmSettings });
 
             const ResultsRoute = () => {
                 const navigate = useNavigate();
@@ -1060,7 +1276,7 @@
 
             const HistoryRoute = () => h(HistoryPage, { history, onClear: clearHistory });
             const DashboardRoute = () => h(DashboardPage, { history });
-            const SettingsRoute = () => h(SettingsPage);
+            const SettingsRoute = () => h(SettingsPage, { settings: llmSettings, onSave: updateSettings });
 
             return h(HashRouter, null,
                 h("div", { className: "app-shell" },
